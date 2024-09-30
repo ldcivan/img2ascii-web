@@ -32,35 +32,40 @@
 </head>
 <body>
     <h1>Image to ASCII Art</h1>
-    <a href="grayscale.html" target="_blank">灰度/With grayscale</a>
+    <a href="index.html" target="_blank">二值化/With binarization</a>
     <input type="file" id="image-input" accept="image/*">
-    <label for="threshold">Threshold:</label>
-    <input type="range" id="threshold" min="0" max="255" value="160">
-    <span id="threshold-value">160</span>
+    <label for="type">Type:</label>
+    <input type="range" id="type" min="0" max="1" value="0">
+    <span id="type-value">0</span>
     <label for="scale">Scale (%):</label>
     <input type="range" id="scale" min="10" max="100" value="100">
     <span id="scale-value">100</span>
     <label for="contrast">Contrast:</label>
     <input type="range" id="contrast" min="0" max="200" value="100">
-    <span id="contrast-value">0</span>
+    <span id="contrast-value">100</span>
     <label for="brightness">Brightness:</label>
     <input type="range" id="brightness" min="0" max="200" value="100">
-    <span id="brightness-value">0</span>
+    <span id="brightness-value">100</span>
     <button id="save">Save</button>
     <canvas id="canvas" style="display: none;"></canvas>
     <pre id="ascii-art"></pre>
 
     <script>
 document.getElementById('image-input').addEventListener('change', handleImageUpload);
-document.getElementById('threshold').addEventListener('input', updateThreshold);
+document.getElementById('type').addEventListener('input', updateType);
 document.getElementById('scale').addEventListener('input', updateScale);
 document.getElementById('contrast').addEventListener('input', updateContrast);
 document.getElementById('brightness').addEventListener('input', updateBrightness);
 
-const asciiChars = "⠀⠁⠂⠃⠄⠅⠆⠇⡀⡁⡂⡃⡄⡅⡆⡇⠈⠉⠊⠋⠌⠍⠎⠏⡈⡉⡊⡋⡌⡍⡎⡏⠐⠑⠒⠓⠔⠕⠖⠗⡐⡑⡒⡓⡔⡕⡖⡗⠘⠙⠚⠛⠜⠝⠞⠟⡘⡙⡚⡛⡜⡝⡞⡟⠠⠡⠢⠣⠤⠥⠦⠧⡠⡡⡢⡣⡤⡥⡦⡧⠨⠩⠪⠫⠬⠭⠮⠯⡨⡩⡪⡫⡬⡭⡮⡯⠰⠱⠲⠳⠴⠵⠶⠷⡰⡱⡲⡳⡴⡵⡶⡷⠸⠹⠺⠻⠼⠽⠾⠿⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⣀⣁⣂⣃⣄⣅⣆⣇⢈⢉⢊⢋⢌⢍⢎⢏⣈⣉⣊⣋⣌⣍⣎⣏⢐⢑⢒⢓⢔⢕⢖⢗⣐⣑⣒⣓⣔⣕⣖⣗⢘⢙⢚⢛⢜⢝⢞⢟⣘⣙⣚⣛⣜⣝⣞⣟⢠⢡⢢⢣⢤⢥⢦⢧⣠⣡⣢⣣⣤⣥⣦⣧⢨⢩⢪⢫⢬⢭⢮⢯⣨⣩⣪⣫⣬⣭⣮⣯⢰⢱⢲⢳⢴⢵⢶⢷⣰⣱⣲⣳⣴⣵⣶⣷⢸⢹⢺⢻⢼⢽⢾⢿⣸⣹⣺⣻⣼⣽⣾⣿";
+let anti_asciiChars = ' .`^",:;Il!i~+_-?][}{1)(|\\/*tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
+// 将字符串转换为字符数组，然后按ASCII值进行排序
+let sortedChars = anti_asciiChars.split('').sort((a, b) => b.charCodeAt(0) - a.charCodeAt(0));
+// 将排序后的字符数组连接成一个新的字符串
+let normal_asciiChars = sortedChars.join('');
+const asciiChars = [normal_asciiChars, anti_asciiChars];
 
+let asciiCharsType = 0;
 let currentImage = null;
-let threshold = 160;
 let scale = 1;
 let contrast = 1; // 默认对比度系数
 let brightness = 1; // 默认亮度系数
@@ -82,9 +87,9 @@ function handleImageUpload(event) {
     reader.readAsDataURL(file);
 }
 
-function updateThreshold(event) {
-    threshold = event.target.value;
-    document.getElementById('threshold-value').textContent = threshold;
+function updateType(event) {
+    asciiCharsType = event.target.value;
+    document.getElementById('type-value').textContent = event.target.value;
     if (currentImage) {
         processImage(currentImage);
     }
@@ -145,13 +150,6 @@ function processImage(img) {
 
     ctx.putImageData(imageData, 0, 0);
 
-    // 转换为二值图像
-    for (let i = 0; i < data.length; i += 4) {
-        const value = data[i] > threshold ? 255 : 0;
-        data[i] = data[i + 1] = data[i + 2] = value;
-    }
-
-    ctx.putImageData(imageData, 0, 0);
     generateASCIIArt(ctx, scaledSize[0], scaledSize[1]);
 }
 
@@ -159,35 +157,47 @@ function generateASCIIArt(ctx, width, height) {
     const imgData = ctx.getImageData(0, 0, width, height);
     const data = imgData.data;
 
+    const aspectRatio = 0.5; // 调整纵横比
+    const adjustedHeight = Math.floor(height * aspectRatio);
+
+    // 计算图像中的最浅和最深灰度值
+    let minGray = 255;
+    let maxGray = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if (gray < minGray) minGray = gray;
+        if (gray > maxGray) maxGray = gray;
+    }
+
     asciiArt = '';
-    for (let y = 0; y < height; y += 4) {
+    for (let y = 0; y < adjustedHeight; y++) {
         let line = '';
-        for (let x = 0; x < width; x += 2) {
-            const pixels = [];
-            for (let dx = 0; dx < 2; dx++) {
-                for (let dy = 0; dy < 4; dy++) {
-                    const index = ((y + dy) * width + (x + dx)) * 4;
-                    const value = data[index] === 255 ? 0 : 1;
-                    pixels.push(value);
-                }
-            }
-            const code = pixels.reduce((acc, val, idx) => acc + val * Math.pow(2, idx), 0);
-            if(code!==0)
-                line += asciiChars[code];
-            else
-                line += "<span></span>";
+        for (let x = 0; x < width; x++) {
+            const index = (Math.floor(y / aspectRatio) * width + x) * 4;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            
+            // 动态映射灰度值到ASCII字符集
+            const normalizedGray = (gray - minGray) / (maxGray - minGray);
+            const charIndex = Math.floor(normalizedGray * (asciiChars[asciiCharsType].length - 1));
+            line += asciiChars[asciiCharsType][charIndex];
         }
         asciiArt += line + '\n';
     }
 
-    document.getElementById('ascii-art').innerHTML = asciiArt;
+    document.getElementById('ascii-art').textContent = asciiArt;
 }
 
     </script>
     <script>
         document.getElementById('save').addEventListener('click', function() {
             // 使用Clipboard API将文本保存到剪切板
-            navigator.clipboard.writeText(asciiArt.replace(/<span><\/span>/g, " ")).then(function() {
+            navigator.clipboard.writeText(asciiArt).then(function() {
                 alert('ASCII art saved to clipboard!');
             }).catch(function(err) {
                 console.error('Failed to save text to clipboard: ', err);
